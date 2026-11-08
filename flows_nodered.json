@@ -1,0 +1,239 @@
+[
+  {
+    "id": "v3_tab_jab",
+    "type": "tab",
+    "label": "CONECTA BRASIL",
+    "disabled": false,
+    "info": "Telemetria MQTT do ESP32 (Wokwi) -> painel em /ui"
+  },
+  {
+    "id": "v3_brk_emqx",
+    "type": "mqtt-broker",
+    "name": "Broker MQTT (emqx)",
+    "broker": "broker.emqx.io",
+    "port": "1883",
+    "clientid": "",
+    "autoConnect": true,
+    "usetls": false,
+    "protocolVersion": "4",
+    "keepalive": "60",
+    "cleansession": true
+  },
+  {
+    "id": "v3_ui_tab_jab",
+    "type": "ui_tab",
+    "name": "Conecta Brasil",
+    "icon": "dashboard",
+    "order": 1,
+    "disabled": false,
+    "hidden": false
+  },
+  {
+    "id": "v3_ui_grp_jab",
+    "type": "ui_group",
+    "name": "Monitor",
+    "tab": "v3_ui_tab_jab",
+    "order": 1,
+    "disp": false,
+    "width": "12",
+    "collapse": false,
+    "className": ""
+  },
+  {
+    "id": "v3_mqtt_in",
+    "type": "mqtt in",
+    "z": "v3_tab_jab",
+    "name": "Telemetria ESP32",
+    "topic": "conectabrasil/iot/sensores",
+    "qos": "0",
+    "datatype": "utf8",
+    "broker": "v3_brk_emqx",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 150,
+    "y": 120,
+    "wires": [
+      [
+        "v3_json_parse"
+      ]
+    ]
+  },
+  {
+    "id": "v3_json_parse",
+    "type": "json",
+    "z": "v3_tab_jab",
+    "name": "",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 330,
+    "y": 120,
+    "wires": [
+      [
+        "v3_fn_valida",
+        "v3_dbg_raw",
+        "v3_wd_trigger"
+      ]
+    ]
+  },
+  {
+    "id": "v3_fn_valida",
+    "type": "function",
+    "z": "v3_tab_jab",
+    "name": "Valida e distribui",
+    "func": "let d = msg.payload;\nif (typeof d === 'string') {\n    try { d = JSON.parse(d); } catch (e) { node.warn('JSON invalido: ' + msg.payload); return null; }\n}\nif (!d || typeof d.activations_pm !== 'number' || !d.status) {\n    node.warn('Payload invalido: ' + JSON.stringify(d));\n    return null;\n}\nconst prev = flow.get('prev_status');\nflow.set('prev_status', d.status);\nconst alerta = (d.status === 'ALTA' && prev !== 'ALTA')\n    ? { topic: 'ALERTA - Fluxo ALTO', payload: d.activations_pm + ' ativações em 5 min · CONECTA BRASIL' }\n    : null;\nreturn [\n    { topic: 'telemetry', payload: d },\n    { topic: 'act/min', payload: d.activations_pm },\n    alerta\n];",
+    "outputs": 3,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 530,
+    "y": 120,
+    "wires": [
+      [
+        "v3_ui_tpl"
+      ],
+      [],
+      [
+        "v3_ui_toast1"
+      ]
+    ]
+  },
+  {
+    "id": "v3_ui_tpl",
+    "type": "ui_template",
+    "z": "v3_tab_jab",
+    "group": "v3_ui_grp_jab",
+    "name": "Painel CONECTA BRASIL",
+    "order": 1,
+    "width": 12,
+    "height": 0,
+    "format": "<style>\n@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');\nmd-toolbar{background:#fff !important;border-bottom:3px solid #7bd10a;box-shadow:none !important}\nmd-toolbar, md-toolbar *{color:#1e3a8a !important}\n.cb{--lime:#7bd10a;--lime-d:#4f9d00;--blue:#1e3a8a;--ink:#102a43;--muted:#64748b;--line:#dcebc2;\n  font-family:'Outfit','Poppins','Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);width:100%}\n.cb *{box-sizing:border-box}\n.cb-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:6px 4px 12px;border-bottom:3px solid var(--lime)}\n.cb-logo{font-size:30px;font-weight:800;font-style:italic;letter-spacing:-.5px;line-height:1}\n.cb-logo .a{color:var(--blue)}\n.cb-logo .b{background:linear-gradient(90deg,#5aa800,#8fdc1a);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}\n.cb-links{display:flex;gap:24px;font-weight:600;font-size:15px}\n.cb-links a{color:var(--ink);cursor:pointer}\n.cb-links a:hover{color:var(--lime-d)}\n.cb-pill{padding:8px 16px;border-radius:10px;font-weight:700;font-size:14px}\n.cb-pill.on{background:var(--lime);color:#0b1f4d}\n.cb-pill.off{background:#e5484d;color:#fff}\n\n.cb-hero{position:relative;overflow:hidden;border-radius:0 0 18px 18px;background:linear-gradient(110deg,#07140f 0%,#0d2a1c 55%,#17492a 100%);\n  color:#fff;padding:34px 30px 24px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;min-height:250px}\n.cb-kicker{color:var(--lime);font-size:13px;font-weight:600;margin-bottom:10px}\n.cb-hero h1{font-size:34px;line-height:1.12;font-weight:800;margin:0 0 20px;max-width:430px;color:#fff}\n.cb-btns{display:flex;gap:12px;flex-wrap:wrap}\n.cb-btn{border:1.5px solid var(--lime);border-radius:8px;padding:9px 16px;font:600 14px 'Outfit','Segoe UI',Arial,sans-serif;cursor:pointer}\n.cb-btn.lime{background:var(--lime);color:#0b1f4d}\n.cb-btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.55)}\n.cb-buses{width:min(100%,340px);height:auto;flex:0 0 auto}\n\n.cb-main{margin:20px 2px 0;display:grid;gap:14px}\n.cb-card{background:#fff;border:1.5px solid var(--line);border-radius:18px;padding:20px 22px;box-shadow:0 10px 28px rgba(16,42,67,.08);transition:opacity .4s}\n.cb-card.stale{opacity:.68}\n.cb-card.ALTA{border-color:#e5484d;animation:cbpulse 1.2s infinite}\n@keyframes cbpulse{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}50%{box-shadow:0 0 0 12px rgba(229,72,77,0)}}\n.cb-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}\n.cb-title{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}\n.cb-big{font-size:68px;font-weight:800;line-height:1;margin-top:4px}\n.cb-big small{font-size:18px;font-weight:500;color:var(--muted);margin-left:8px}\n.cb-cap{font-size:13px;color:var(--muted);margin-top:4px}\n.cb-chip{padding:7px 16px;border-radius:999px;font-weight:700;font-size:14px;background:#e5e7eb;color:#334155}\n.cb-chip.BAIXA{background:#e3f6c6;color:#2f6b00}\n.cb-chip.MODERADA{background:#fff1bd;color:#8a6100}\n.cb-chip.ALTA{background:#ffd9db;color:#b4232a}\n.cb-bar{position:relative;height:14px;border-radius:9px;background:#e8edf2;margin-top:20px;overflow:hidden}\n.cb-bar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:9px;transition:width .6s ease}\n.cb-bar b{position:absolute;top:0;bottom:0;width:2px;background:#fff}\n.cb-lbl{position:relative;height:18px;margin-top:8px;font-size:12px;color:var(--muted)}\n.cb-lbl span{position:absolute;white-space:nowrap}\n.cb-sub{font-size:14px;margin-top:10px}\n.cb-warn{font-size:13px;color:#b4232a;font-weight:600;margin-top:6px}\n\n.cb-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}\n.cb-tile{background:#fff;border:1.5px solid var(--line);border-radius:14px;padding:14px 16px}\n.cb-tile b{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:4px}\n.cb-tile span{font-size:21px;font-weight:700}\n.cb-tile em{display:block;font-style:normal;font-size:12px;color:var(--muted);margin-top:2px}\n\n.cb-spark svg{width:100%;height:100px;display:block;margin-top:8px}\n.cb-key{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}\n.cb-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:12px}\n.cb-step{background:#f6faee;border-radius:14px;padding:14px 16px;font-size:14px;line-height:1.45}\n.cb-step i{display:inline-block;width:26px;height:26px;border-radius:50%;background:var(--lime);color:#0b1f4d;font-style:normal;font-weight:800;text-align:center;line-height:26px;margin-bottom:6px}\n.cb-note{font-size:12px;color:var(--muted);line-height:1.5;padding:0 4px 8px}\n</style>\n\n<div class=\"cb\">\n  <div class=\"cb-nav\">\n    <div class=\"cb-logo\"><span class=\"a\">Conecta</span><span class=\"b\">.Brasil</span></div>\n    <div class=\"cb-links\">\n      <a ng-click=\"go('cb-como')\">Como funciona</a>\n      <a ng-click=\"go('cb-prev')\">Previsão</a>\n    </div>\n    <div class=\"cb-pill\" ng-class=\"m.conn === 'ONLINE' ? 'on' : 'off'\">● {{m.conn === 'ONLINE' ? 'Dispositivo online' : 'Dispositivo offline'}}</div>\n  </div>\n\n  <div class=\"cb-hero\">\n    <div>\n      <div class=\"cb-kicker\">Informação para uma viagem mais tranquila</div>\n      <h1>Um terminal mais previsível começa antes da viagem.</h1>\n      <div class=\"cb-btns\">\n        <button class=\"cb-btn lime\" ng-click=\"go('cb-mon')\">Ver monitoramento</button>\n        <button class=\"cb-btn ghost\" ng-click=\"go('cb-como')\">Como funciona</button>\n      </div>\n    </div>\n    <svg class=\"cb-buses\" viewBox=\"0 0 400 170\" aria-hidden=\"true\">\n      <defs>\n        <g id=\"cbbus\">\n          <rect x=\"0\" y=\"0\" width=\"90\" height=\"100\" rx=\"12\" fill=\"#6cc304\"/>\n          <rect x=\"22\" y=\"5\" width=\"46\" height=\"9\" rx=\"3\" fill=\"#0b2a1f\"/>\n          <rect x=\"8\" y=\"18\" width=\"74\" height=\"38\" rx=\"6\" fill=\"#0b2a1f\"/>\n          <circle cx=\"20\" cy=\"74\" r=\"7\" fill=\"#fff7c2\"/>\n          <circle cx=\"70\" cy=\"74\" r=\"7\" fill=\"#fff7c2\"/>\n          <rect x=\"10\" y=\"88\" width=\"70\" height=\"6\" rx=\"3\" fill=\"#3f8f00\"/>\n          <rect x=\"8\" y=\"100\" width=\"14\" height=\"14\" rx=\"3\" fill=\"#06100b\"/>\n          <rect x=\"68\" y=\"100\" width=\"14\" height=\"14\" rx=\"3\" fill=\"#06100b\"/>\n        </g>\n      </defs>\n      <use href=\"#cbbus\" xlink:href=\"#cbbus\" transform=\"translate(0,103) scale(.5)\" opacity=\".45\"/>\n      <use href=\"#cbbus\" xlink:href=\"#cbbus\" transform=\"translate(57,92) scale(.6)\" opacity=\".6\"/>\n      <use href=\"#cbbus\" xlink:href=\"#cbbus\" transform=\"translate(123,78) scale(.72)\" opacity=\".75\"/>\n      <use href=\"#cbbus\" xlink:href=\"#cbbus\" transform=\"translate(200,62) scale(.86)\" opacity=\".9\"/>\n      <use href=\"#cbbus\" xlink:href=\"#cbbus\" transform=\"translate(289,46) scale(1)\"/>\n    </svg>\n  </div>\n\n  <div class=\"cb-main\">\n    <div id=\"cb-mon\" class=\"cb-card\" ng-class=\"[m.status, {stale: m.conn !== 'ONLINE'}]\">\n      <div class=\"cb-head\">\n        <div>\n          <div class=\"cb-title\">Fluxo no ponto agora</div>\n          <div class=\"cb-big\">{{m.n}}<small>ativações</small></div>\n          <div class=\"cb-cap\">nos últimos 5 minutos · atualizado às {{m.last}}</div>\n        </div>\n        <div class=\"cb-chip\" ng-class=\"m.status\">{{m.label}}</div>\n      </div>\n      <div class=\"cb-bar\">\n        <i class=\"fill\" ng-style=\"{width: m.pct + '%', background: m.fill}\"></i>\n        <b style=\"left:30%\"></b><b style=\"left:75%\"></b>\n      </div>\n      <div class=\"cb-lbl\">\n        <span style=\"left:0\">Tranquilo</span>\n        <span style=\"left:30%\">Moderado · 6+</span>\n        <span style=\"left:75%\">Alto · 15+</span>\n      </div>\n      <div class=\"cb-sub\">{{m.sub}}</div>\n      <div class=\"cb-warn\" ng-if=\"m.conn !== 'ONLINE'\">⚠ Sem comunicação com o dispositivo — mostrando o último dado recebido.</div>\n    </div>\n\n    <div class=\"cb-tiles\">\n      <div class=\"cb-tile\"><b>Próxima atualização</b><span>{{m.next}}</span><em>o dispositivo envia a cada 5 s</em></div>\n      <div id=\"cb-prev\" class=\"cb-tile\"><b>Projeção em 10 min</b><span>{{m.trend}} {{m.proj}} ativações</span><em>{{m.projLabel}} · estimativa pela tendência</em></div>\n      <div class=\"cb-tile\"><b>Alertas ALTO</b><span>{{m.alerts}}</span><em>pico da sessão: {{m.peak}} ativações</em></div>\n      <div class=\"cb-tile\"><b>Tempo ligado</b><span>{{m.uptime}}</span><em>{{m.device}}</em></div>\n    </div>\n\n    <div class=\"cb-card cb-spark\">\n      <div class=\"cb-title\">Últimas leituras</div>\n      <svg viewBox=\"0 0 400 90\" preserveAspectRatio=\"none\">\n        <line x1=\"0\" y1=\"61\" x2=\"400\" y2=\"61\" stroke=\"#f5b301\" stroke-dasharray=\"4 4\" stroke-width=\"1\" vector-effect=\"non-scaling-stroke\"/>\n        <line x1=\"0\" y1=\"25\" x2=\"400\" y2=\"25\" stroke=\"#e5484d\" stroke-dasharray=\"4 4\" stroke-width=\"1\" vector-effect=\"non-scaling-stroke\"/>\n        <polygon ng-attr-points=\"{{m.area}}\" fill=\"rgba(123,209,10,.18)\"/>\n        <polyline ng-attr-points=\"{{m.points}}\" fill=\"none\" stroke=\"#4f9d00\" stroke-width=\"3\" stroke-linejoin=\"round\" vector-effect=\"non-scaling-stroke\"/>\n      </svg>\n      <div class=\"cb-key\"><span>- - 6 = moderado</span><span>- - 15 = alto</span></div>\n    </div>\n\n    <div id=\"cb-como\" class=\"cb-card\">\n      <div class=\"cb-title\">Como funciona</div>\n      <div class=\"cb-steps\">\n        <div class=\"cb-step\"><i>1</i><br>Um sensor de movimento no ponto registra cada nova chegada (ativação).</div>\n        <div class=\"cb-step\"><i>2</i><br>O ESP32 decide o nível de fluxo na hora e avisa no local com luz, display e som.</div>\n        <div class=\"cb-step\"><i>3</i><br>Os dados seguem por MQTT até o Node-RED e aparecem aqui, em tempo real.</div>\n      </div>\n    </div>\n\n    <div class=\"cb-note\">\n      Ativação = um movimento novo detectado pelo sensor PIR; o sensor não conta pessoas individualmente.\n      A janela de 5 minutos é aproximadamente o intervalo entre ônibus no horário de pico.\n      O alerta local é decidido no próprio ESP32 e continua funcionando mesmo sem internet.\n    </div>\n  </div>\n</div>\n\n<script>\n(function(scope){\n  function pad(x){return (x<10?'0':'')+x;}\n  function hms(s){s=Math.floor(s||0);return pad(Math.floor(s/3600))+':'+pad(Math.floor(s%3600/60))+':'+pad(s%60);}\n  var LABEL={BAIXA:'Tranquilo',MODERADA:'Moderado',ALTA:'Alto · alerta'};\n  var SUB={BAIXA:'Fluxo normal, sem aglomeração.',MODERADA:'Movimentação crescente, atenção.',ALTA:'Alta movimentação no ponto monitorado.'};\n  var FILL={NONE:'#cbd5e1',BAIXA:'linear-gradient(90deg,#7bd10a,#a6e22e)',MODERADA:'linear-gradient(90deg,#7bd10a,#f5c400)',ALTA:'linear-gradient(90deg,#f5c400,#e5484d)'};\n  var hist=[], samples=[], lastSample=0, lastMsg=0, prev='NONE';\n\n  function levelOf(n){return n>=15?'Alto':(n>=6?'Moderado':'Tranquilo');}\n\n  scope.m={status:'NONE',label:'Aguardando dados',sub:'Nenhuma telemetria recebida ainda.',n:0,pct:0,fill:FILL.NONE,conn:'OFFLINE',\n           device:'—',uptime:'—',last:'—',next:'aguardando...',peak:0,alerts:0,trend:'→',proj:0,projLabel:'Tranquilo',points:'',area:''};\n\n  scope.go=function(id){var e=document.getElementById(id); if(e && e.scrollIntoView){e.scrollIntoView({behavior:'smooth',block:'start'});}};\n\n  var timer=setInterval(function(){\n    scope.$evalAsync(function(){\n      if(!lastMsg){scope.m.next='aguardando...';return;}\n      var s=5-Math.floor((Date.now()-lastMsg)/1000);\n      scope.m.next = s>0 ? 'em ~'+s+' s' : (scope.m.conn==='ONLINE' ? 'a qualquer momento' : 'sem sinal');\n    });\n  },1000);\n  scope.$on('$destroy',function(){clearInterval(timer);});\n\n  scope.$watch('msg',function(msg){\n    if(!msg) return;\n    var m=scope.m;\n    if(msg.topic==='conn'){ m.conn=msg.payload; return; }\n    var d=msg.payload;\n    if(!d || typeof d.activations_pm!=='number') return;\n    var now=Date.now(); lastMsg=now;\n\n    m.status=d.status; m.label=LABEL[d.status]||d.status; m.sub=SUB[d.status]||'';\n    m.fill=FILL[d.status]||FILL.NONE;\n    m.n=d.activations_pm; m.pct=Math.min(m.n,20)/20*100;\n    m.device=d.device_id; m.uptime=hms(d.uptime_s); m.last=new Date().toLocaleTimeString('pt-BR');\n    if(m.n>m.peak) m.peak=m.n;\n    if(d.status==='ALTA' && prev!=='ALTA') m.alerts++;\n    prev=d.status;\n\n    // mini-grafico (escala 0..20)\n    var last=hist.length?hist[hist.length-1]:null;\n    if(!last || last.n!==m.n || now-last.t>=2000){ hist.push({t:now,n:m.n}); if(hist.length>50) hist.shift(); }\n    var pts=[];\n    for(var i=0;i<hist.length;i++){\n      var x=hist.length>1 ? i*400/(hist.length-1) : 0;\n      pts.push(x.toFixed(1)+','+(85-Math.min(hist[i].n,20)/20*80).toFixed(1));\n    }\n    m.points=pts.join(' ');\n    m.area=pts.length>1 ? pts.join(' ')+' 400,85 0,85' : '';\n\n    // projecao simples (extrapolacao linear da tendencia recente, 1 amostra a cada 10 s)\n    if(!lastSample || now-lastSample>=10000){ samples.push({t:now,n:m.n}); if(samples.length>60) samples.shift(); lastSample=now; }\n    var recent=samples.filter(function(p){return now-p.t<=180000;});\n    var proj=m.n, trend='→';\n    if(recent.length>=3){\n      var a=recent[0], b=recent[recent.length-1], dt=(b.t-a.t)/60000;\n      if(dt>=0.5){\n        var slope=(b.n-a.n)/dt;\n        proj=Math.round(Math.max(0,Math.min(40,m.n+slope*10)));\n        trend = slope>0.3 ? '↗' : (slope<-0.3 ? '↘' : '→');\n      }\n    }\n    m.proj=proj; m.trend=trend; m.projLabel=levelOf(proj);\n  });\n})(scope);\n</script>\n",
+    "storeOutMessages": true,
+    "fwdInMessages": false,
+    "resendOnRefresh": true,
+    "templateScope": "local",
+    "className": "",
+    "x": 790,
+    "y": 80,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "v3_ui_toast1",
+    "type": "ui_toast",
+    "z": "v3_tab_jab",
+    "position": "top right",
+    "displayTime": "6",
+    "highlight": "#ef4444",
+    "sendall": true,
+    "outputs": 0,
+    "ok": "OK",
+    "cancel": "",
+    "raw": false,
+    "className": "",
+    "topic": "",
+    "name": "Alerta ALTO",
+    "x": 780,
+    "y": 180,
+    "wires": []
+  },
+  {
+    "id": "v3_mqtt_status",
+    "type": "mqtt in",
+    "z": "v3_tab_jab",
+    "name": "Status (LWT)",
+    "topic": "conectabrasil/iot/status",
+    "qos": "0",
+    "datatype": "utf8",
+    "broker": "v3_brk_emqx",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 130,
+    "y": 260,
+    "wires": [
+      [
+        "v3_fn_conn"
+      ]
+    ]
+  },
+  {
+    "id": "v3_wd_trigger",
+    "type": "trigger",
+    "z": "v3_tab_jab",
+    "name": "Watchdog 30s",
+    "op1": "ONLINE",
+    "op2": "OFFLINE (sem telemetria)",
+    "op1type": "str",
+    "op2type": "str",
+    "duration": "30",
+    "extend": true,
+    "overrideDelay": false,
+    "units": "s",
+    "reset": "",
+    "bytopic": "all",
+    "outputs": 1,
+    "x": 340,
+    "y": 320,
+    "wires": [
+      [
+        "v3_fn_conn"
+      ]
+    ]
+  },
+  {
+    "id": "v3_fn_conn",
+    "type": "function",
+    "z": "v3_tab_jab",
+    "name": "Normaliza conexão",
+    "func": "const p = String(msg.payload).toLowerCase();\nreturn { topic: 'conn', payload: p.indexOf('online') === 0 ? 'ONLINE' : 'OFFLINE' };",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 560,
+    "y": 280,
+    "wires": [
+      [
+        "v3_ui_tpl",
+        "v3_dbg_conn"
+      ]
+    ]
+  },
+  {
+    "id": "v3_dbg_raw",
+    "type": "debug",
+    "z": "v3_tab_jab",
+    "name": "Payload JSON",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 540,
+    "y": 60,
+    "wires": []
+  },
+  {
+    "id": "v3_dbg_conn",
+    "type": "debug",
+    "z": "v3_tab_jab",
+    "name": "Conexão",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "x": 790,
+    "y": 280,
+    "wires": []
+  }
+]
